@@ -11,10 +11,12 @@ Cron example:
 Outputs:   OUTPUT_PATH (single HTML file, ready to serve)
 """
 
+import argparse
 import json
 import os
 import requests
 from datetime import datetime
+from typing import List
 
 # ─────────────────────────────────────────────────────────────
 #  CONFIGURATION  ← edit here
@@ -43,15 +45,18 @@ STATIONS = [
     {"id": "CUCU1"},
 ]
 
-# Where to write the finished HTML file
-# Change this to match your web server's directory.
-OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "Uintas-Weather-Stations.html")
+# Where to write the finished HTML file.
+# Override via --output CLI arg or DASHBOARD_OUTPUT_PATH env var.
+# Example cron: /usr/bin/python3 /home/user/python/scripts/generate_uintas-dashboard.py \
+#               --output /home/user/public_html/Weather/Uintas-Weather-Stations.html
+_DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "Uintas-Weather-Stations.html")
+OUTPUT_PATH = os.environ.get("DASHBOARD_OUTPUT_PATH", _DEFAULT_OUTPUT)
 
 # ─────────────────────────────────────────────────────────────
 #  DATA FETCH
 # ─────────────────────────────────────────────────────────────
 
-def fetch_stations() -> list[dict]:
+def fetch_stations() -> List[dict]:
     """Fetch 48 h of data for all configured stations in one API call."""
     stids   = ",".join(s["id"] for s in STATIONS)
     minutes = HOURS * 60
@@ -76,7 +81,7 @@ def fetch_stations() -> list[dict]:
     return data["STATION"]
 
 
-def parse_stations(raw_stations: list[dict]) -> list[dict]:
+def parse_stations(raw_stations: List[dict]) -> List[dict]:
     """Convert raw API results into clean dicts suitable for JSON embedding."""
     # Build a lookup by STID
     by_id = {s["STID"]: s for s in raw_stations}
@@ -136,7 +141,7 @@ def parse_stations(raw_stations: list[dict]) -> list[dict]:
 #  HTML GENERATION
 # ─────────────────────────────────────────────────────────────
 
-def generate_html(station_list: list[dict], generated_at: str) -> str:
+def generate_html(station_list: List[dict], generated_at: str) -> str:
     data_json = json.dumps({
         "region":       REGION,
         "generated_at": generated_at,
@@ -791,6 +796,17 @@ init();
 # ─────────────────────────────────────────────────────────────
 
 def main():
+    global OUTPUT_PATH
+    parser = argparse.ArgumentParser(description="Generate Uintas weather dashboard HTML.")
+    parser.add_argument(
+        "--output", "-o",
+        default=None,
+        help="Path to write the HTML file (overrides DASHBOARD_OUTPUT_PATH env var and default)",
+    )
+    args = parser.parse_args()
+    if args.output:
+        OUTPUT_PATH = args.output
+
     generated_at = datetime.now().strftime("%B %-d, %Y at %-I:%M %p")
     print(f"\n=== Weather Dashboard Generator ===")
     print(f"Region  : {REGION}")
