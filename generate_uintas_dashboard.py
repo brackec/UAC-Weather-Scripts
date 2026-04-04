@@ -35,6 +35,7 @@ HOURS = 48
 STATIONS = [
     {"id": "UTBMP"},
     {"id": "LOFTY"},
+    {"id": "WDYPK"},
     {"id": "TRLU1"},
     {"id": "TPRUT"},
     {"id": "SMMU1"},
