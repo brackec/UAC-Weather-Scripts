@@ -489,6 +489,12 @@ function buildStatsBar(st) {{
   if (validWinds.length) {{
     const cur = validWinds[validWinds.length - 1];
     items.push(['Current Wind', cur.toFixed(1) + ' mph', 'wind']);
+    const validDirs = st.wind_dir.filter(v => v != null);
+    if (validDirs.length) {{
+      const curDir = validDirs[validDirs.length - 1];
+      const dirLabel = DIR_LABELS[Math.round(curDir / DIR_SIZE) % N_DIRS];
+      items.push(['Current Direction', curDir.toFixed(0) + '° (' + dirLabel + ')', 'wind']);
+    }}
     if (validGusts.length) {{
       items.push(['{HOURS}h Max Gust', Math.max(...validGusts).toFixed(1) + ' mph', 'wind']);
     }} else {{
