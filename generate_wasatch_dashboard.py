@@ -248,6 +248,14 @@ def generate_html(station_list: List[dict], generated_at: str, refresh_url: str 
     .station-name {{ font-size: 1.05rem; font-weight: 700; }}
     .station-id   {{ font-size: 0.78rem; opacity: 0.65; margin-left: 6px; }}
     .station-meta {{ font-size: 0.78rem; opacity: 0.8; }}
+    .nws-link {{
+      font-size: 1.05rem;
+      color: rgba(255,255,255,0.85);
+      text-decoration: none;
+      margin-left: 10px;
+      white-space: nowrap;
+    }}
+    .nws-link:hover {{ color: #fff; text-decoration: underline; }}
 
     /* ── Charts layout ── */
     .charts-area {{
@@ -437,6 +445,15 @@ function buildCard(st) {{
 
   const hasSnow = st.snow_in.some(v => v != null);
 
+  const nwsHref = (st.lat && st.lon)
+    ? 'https://forecast.weather.gov/MapClick.php?w0=t&w1=td&w2=wc&w3=sfcwind&w3u=1&w4=sky&w5=pop&w6=rh&w7=thunder&w8=rain&w9=snow&w10=fzg&w11=sleet&AheadHour=0&Submit=Submit&FcstType=graphical&textField1='
+      + parseFloat(st.lat).toFixed(5) + '&textField2='
+      + parseFloat(st.lon).toFixed(5) + '&site=all&unit=0&dd=&bw='
+    : '';
+  const nwsLink = nwsHref
+    ? '<a class="nws-link" href="' + nwsHref + '" target="_blank" rel="noopener noreferrer">NWS Point Forecast</a>'
+    : '';
+
   const card = document.createElement('div');
   card.className = 'station-card';
   card.innerHTML = `
@@ -444,6 +461,7 @@ function buildCard(st) {{
       <div>
         <span class="station-name">${{st.name}}</span>
         <span class="station-id">${{st.id}}</span>
+        ${{nwsLink}}
       </div>
       <div class="station-meta">${{meta}}</div>
     </div>
@@ -850,7 +868,9 @@ $script = """ + repr(server_script_path) + """;
 $output = __DIR__ . '""" + "/" + html_name + """';
 $cmd    = $python . " " . escapeshellarg($script) . " --output " . escapeshellarg($output) . " 2>&1";
 shell_exec($cmd);
-header('Location: """ + html_name + """');
+header('Cache-Control: no-store, no-cache, must-revalidate');
+header('Pragma: no-cache');
+header('Location: """ + html_name + """?t=' . time());
 exit;
 """
     with open(php_path, "w", encoding="utf-8") as f:
@@ -900,10 +920,9 @@ def main():
         print("\nERROR: No station data parsed. HTML not written.")
         return 1
 
-    refresh_url = ""
+    refresh_url = "refresh-wasatch.php"
     if SERVER_SCRIPT_PATH:
         php_path = write_refresh_php(OUTPUT_PATH, SERVER_SCRIPT_PATH, args.python_path)
-        refresh_url = "refresh-wasatch.php"
         print(f"  PHP refresh helper: {php_path}")
 
     html = generate_html(station_list, generated_at, refresh_url=refresh_url)

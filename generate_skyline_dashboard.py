@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Weather Dashboard Generator
+UAC Weather Dashboard Generator
 ================================
 Fetches weather station data from the Synoptic Data API and writes a
 self-contained HTML file.  Run from cron twice daily (6 AM / 6 PM).
@@ -11,10 +11,12 @@ Cron example:
 Outputs:   OUTPUT_PATH (single HTML file, ready to serve)
 """
 
+import argparse
 import json
 import os
 import requests
 from datetime import datetime
+from typing import List
 
 # ─────────────────────────────────────────────────────────────
 #  CONFIGURATION  ← edit here
@@ -24,34 +26,41 @@ from datetime import datetime
 TOKEN = "1643bf6fc1c2450b8ac5b25ff91a1fab"
 
 # UAC forecast region label shown in the page header
-REGION = "Uintas"
+REGION = "Skyline"
 
 # Hours of history to retrieve (48 = last 2 days)
 HOURS = 48
 
 # Station list — add Synoptic STIDs for this region
 STATIONS = [
-    {"id": "UTBMP"},
-    {"id": "LOFTY"},
-    {"id": "TRLU1"},
-    {"id": "TPRUT"},
-    {"id": "SMMU1"},
-    {"id": "DSRUT"},
-    {"id": "CCPUT"},
-    {"id": "CCSUT"},
-    {"id": "MHSUT"},
-    {"id": "CUCU1"},
+    {"id": "SKY"},
+    {"id": "ULAMB"},
+    {"id": "UKALF"},
+    {"id": "UTMPK"},
+    {"id": "SEEU1"},
+    {"id": "MCDU1"},
+    {"id": "MTBU1"},
+    {"id": "BUFU1"},
+    {"id": "PC538"},
 ]
 
-# Where to write the finished HTML file
-# Change this to match your web server's directory.
-OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "Uintas-Weather-Stations.html")
+# Where to write the finished HTML file.
+# Override via --output CLI arg or DASHBOARD_OUTPUT_PATH env var.
+# Example cron: /usr/bin/python3 /home/user/python/scripts/generate_skyline_dashboard.py \
+#               --output /home/user/public_html/Weather/Skyline-Weather-Stations.html
+_DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "Skyline-Weather-Stations.html")
+OUTPUT_PATH = os.environ.get("DASHBOARD_OUTPUT_PATH", _DEFAULT_OUTPUT)
+
+# Absolute path to THIS script on the server, used to generate the PHP refresh helper.
+# Set via --server-script-path CLI arg. If not set, no PHP file is written.
+# Example: /home2/vofgesmy/python/scripts/generate_skyline_dashboard.py
+SERVER_SCRIPT_PATH = None
 
 # ─────────────────────────────────────────────────────────────
 #  DATA FETCH
 # ─────────────────────────────────────────────────────────────
 
-def fetch_stations() -> list[dict]:
+def fetch_stations() -> List[dict]:
     """Fetch 48 h of data for all configured stations in one API call."""
     stids   = ",".join(s["id"] for s in STATIONS)
     minutes = HOURS * 60
@@ -64,7 +73,7 @@ def fetch_stations() -> list[dict]:
         "&obtimezone=local"
     )
 
-    print(f"  Fetching {len(STATIONS)} stations …")
+    print(f"  Fetching {len(STATIONS)} stations ...")
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     data = resp.json()
@@ -76,7 +85,7 @@ def fetch_stations() -> list[dict]:
     return data["STATION"]
 
 
-def parse_stations(raw_stations: list[dict]) -> list[dict]:
+def parse_stations(raw_stations: List[dict]) -> List[dict]:
     """Convert raw API results into clean dicts suitable for JSON embedding."""
     # Build a lookup by STID
     by_id = {s["STID"]: s for s in raw_stations}
@@ -136,7 +145,17 @@ def parse_stations(raw_stations: list[dict]) -> list[dict]:
 #  HTML GENERATION
 # ─────────────────────────────────────────────────────────────
 
-def generate_html(station_list: list[dict], generated_at: str) -> str:
+def generate_html(station_list: List[dict], generated_at: str, refresh_url: str = "") -> str:
+    if refresh_url:
+        refresh_button_html = (
+            f'<a href="{refresh_url}" class="refresh-btn">'
+            '<svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/>'
+            '<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
+            'Refresh Data</a>'
+        )
+    else:
+        refresh_button_html = ""
+
     data_json = json.dumps({
         "region":       REGION,
         "generated_at": generated_at,
@@ -187,6 +206,24 @@ def generate_html(station_list: list[dict], generated_at: str) -> str:
     }}
     .page-header h1   {{ font-size: 1.45rem; font-weight: 700; }}
     .page-header .meta {{ font-size: 0.82rem; opacity: 0.75; margin-top: 4px; }}
+    .refresh-btn {{
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.35);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }}
+    .refresh-btn:hover {{ background: rgba(255,255,255,0.25); }}
+    .refresh-btn svg {{ width: 14px; height: 14px; fill: none; stroke: currentColor;
+                        stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
+                        pointer-events: none; }}
 
     /* ── Station cards ── */
     .station-card {{
@@ -210,6 +247,14 @@ def generate_html(station_list: list[dict], generated_at: str) -> str:
     .station-name {{ font-size: 1.05rem; font-weight: 700; }}
     .station-id   {{ font-size: 0.78rem; opacity: 0.65; margin-left: 6px; }}
     .station-meta {{ font-size: 0.78rem; opacity: 0.8; }}
+    .nws-link {{
+      font-size: 1.05rem;
+      color: rgba(255,255,255,0.85);
+      text-decoration: none;
+      margin-left: 10px;
+      white-space: nowrap;
+    }}
+    .nws-link:hover {{ color: #fff; text-decoration: underline; }}
 
     /* ── Charts layout ── */
     .charts-area {{
@@ -337,6 +382,7 @@ def generate_html(station_list: list[dict], generated_at: str) -> str:
     <h1>{REGION} &mdash; Weather Station Dashboard</h1>
     <div class="meta">Generated {generated_at} &nbsp;&bull;&nbsp; Last {HOURS} hours (local time)</div>
   </div>
+  {refresh_button_html}
 </div>
 
 <div id="stations-container"></div>
@@ -398,6 +444,15 @@ function buildCard(st) {{
 
   const hasSnow = st.snow_in.some(v => v != null);
 
+  const nwsHref = (st.lat && st.lon)
+    ? 'https://forecast.weather.gov/MapClick.php?w0=t&w1=td&w2=wc&w3=sfcwind&w3u=1&w4=sky&w5=pop&w6=rh&w7=thunder&w8=rain&w9=snow&w10=fzg&w11=sleet&AheadHour=0&Submit=Submit&FcstType=graphical&textField1='
+      + parseFloat(st.lat).toFixed(5) + '&textField2='
+      + parseFloat(st.lon).toFixed(5) + '&site=all&unit=0&dd=&bw='
+    : '';
+  const nwsLink = nwsHref
+    ? '<a class="nws-link" href="' + nwsHref + '" target="_blank" rel="noopener noreferrer">NWS Point Forecast</a>'
+    : '';
+
   const card = document.createElement('div');
   card.className = 'station-card';
   card.innerHTML = `
@@ -405,6 +460,7 @@ function buildCard(st) {{
       <div>
         <span class="station-name">${{st.name}}</span>
         <span class="station-id">${{st.id}}</span>
+        ${{nwsLink}}
       </div>
       <div class="station-meta">${{meta}}</div>
     </div>
@@ -450,6 +506,12 @@ function buildStatsBar(st) {{
   if (validWinds.length) {{
     const cur = validWinds[validWinds.length - 1];
     items.push(['Current Wind', cur.toFixed(1) + ' mph', 'wind']);
+    const validDirs = st.wind_dir.filter(v => v != null);
+    if (validDirs.length) {{
+      const curDir = validDirs[validDirs.length - 1];
+      const dirLabel = DIR_LABELS[Math.round(curDir / DIR_SIZE) % N_DIRS];
+      items.push(['Current Direction', curDir.toFixed(0) + '° (' + dirLabel + ')', 'wind']);
+    }}
     if (validGusts.length) {{
       items.push(['{HOURS}h Max Gust', Math.max(...validGusts).toFixed(1) + ' mph', 'wind']);
     }} else {{
@@ -790,7 +852,59 @@ init();
 #  MAIN
 # ─────────────────────────────────────────────────────────────
 
+def write_refresh_php(output_html_path: str, server_script_path: str,
+                      python_path: str = "python3") -> str:
+    """Write a PHP helper next to the HTML file that reruns this script."""
+    html_dir  = os.path.dirname(os.path.abspath(output_html_path))
+    html_name = os.path.basename(output_html_path)
+    php_path  = os.path.join(html_dir, "refresh-skyline.php")
+
+    php = """<?php
+// Auto-generated by generate_skyline_dashboard.py
+// Reruns the weather dashboard generator and redirects back to the dashboard.
+$python = """ + repr(python_path) + """;
+$script = """ + repr(server_script_path) + """;
+$output = __DIR__ . '""" + "/" + html_name + """';
+$cmd    = $python . " " . escapeshellarg($script) . " --output " . escapeshellarg($output) . " 2>&1";
+shell_exec($cmd);
+header('Cache-Control: no-store, no-cache, must-revalidate');
+header('Pragma: no-cache');
+header('Location: """ + html_name + """?t=' . time());
+exit;
+"""
+    with open(php_path, "w", encoding="utf-8") as f:
+        f.write(php)
+    return php_path
+
+
 def main():
+    global OUTPUT_PATH, SERVER_SCRIPT_PATH
+    parser = argparse.ArgumentParser(description="Generate Skyline weather dashboard HTML.")
+    parser.add_argument(
+        "--output", "-o",
+        default=None,
+        help="Path to write the HTML file (overrides DASHBOARD_OUTPUT_PATH env var and default)",
+    )
+    parser.add_argument(
+        "--server-script-path",
+        default=None,
+        help=(
+            "Absolute path to this script on the server (e.g. "
+            "/home2/vofgesmy/python/scripts/generate_skyline_dashboard.py). "
+            "When set, writes a refresh-skyline.php helper alongside the HTML."
+        ),
+    )
+    parser.add_argument(
+        "--python-path",
+        default="/bin/python3",
+        help="Absolute path to python3 on the server (default: /bin/python3).",
+    )
+    args = parser.parse_args()
+    if args.output:
+        OUTPUT_PATH = args.output
+    if args.server_script_path:
+        SERVER_SCRIPT_PATH = args.server_script_path
+
     generated_at = datetime.now().strftime("%B %-d, %Y at %-I:%M %p")
     print(f"\n=== Weather Dashboard Generator ===")
     print(f"Region  : {REGION}")
@@ -805,14 +919,19 @@ def main():
         print("\nERROR: No station data parsed. HTML not written.")
         return 1
 
-    html = generate_html(station_list, generated_at)
+    refresh_url = "refresh-skyline.php"
+    if SERVER_SCRIPT_PATH:
+        php_path = write_refresh_php(OUTPUT_PATH, SERVER_SCRIPT_PATH, args.python_path)
+        print(f"  PHP refresh helper: {php_path}")
+
+    html = generate_html(station_list, generated_at, refresh_url=refresh_url)
 
     os.makedirs(os.path.dirname(os.path.abspath(OUTPUT_PATH)), exist_ok=True)
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         f.write(html)
 
     size_kb = os.path.getsize(OUTPUT_PATH) / 1024
-    print(f"\n✓ Written: {OUTPUT_PATH} ({size_kb:.1f} KB)")
+    print(f"\nWritten: {OUTPUT_PATH} ({size_kb:.1f} KB)")
     print(f"  {len(station_list)}/{len(STATIONS)} stations included")
     return 0
 
