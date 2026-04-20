@@ -33,6 +33,7 @@ HOURS = 48
 
 # Station list — add Synoptic STIDs for this region
 STATIONS = [
+    {"id": "PC032"},
     {"id": "PCM01"},
     {"id": "C99"},
     {"id": "MLDU1"},
