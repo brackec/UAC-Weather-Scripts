@@ -699,8 +699,10 @@ def write_refresh_php(output_html_path: str, server_script_path: str,
 $python = """ + repr(python_path) + """;
 $script = """ + repr(server_script_path) + """;
 $output = __DIR__ . '""" + "/" + html_name + """';
+$log    = __DIR__ . '/refresh-7day.log';
 $cmd    = $python . " " . escapeshellarg($script) . " --output " . escapeshellarg($output) . " 2>&1";
-shell_exec($cmd);
+$result = shell_exec($cmd);
+file_put_contents($log, date('Y-m-d H:i:s') . "\\n" . $cmd . "\\n" . $result . "\\n---\\n", FILE_APPEND);
 header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Pragma: no-cache');
 header('Location: """ + html_name + """?t=' . time());
