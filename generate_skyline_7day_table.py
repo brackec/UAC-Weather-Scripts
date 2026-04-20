@@ -179,7 +179,7 @@ def parse_stations(raw_stations: List[dict]) -> List[dict]:
             "has_snow":   has_snow,
         })
 
-        print(f"  {cfg['id']:8s}  {n:4d} raw obs → {len(hourly):3d} hourly rows  "
+        print(f"  {cfg['id']:8s}  {n:4d} raw obs -> {len(hourly):3d} hourly rows  "
               f"precip:{'Y' if has_precip else 'N'}  snow:{'Y' if has_snow else 'N'}")
 
     return result
