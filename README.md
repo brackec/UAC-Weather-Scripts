@@ -25,3 +25,11 @@ These are run using the following commands. Substitute the proper paths as neede
     0 6,18 * * * python3 python/scripts/generate_wasatch_7day_table.py --output /home2/vofgesmy/public_html/brackpackblog/Weather/Wasatch-7Day-Table.html --server-script-path /home2/vofgesmy/python/scripts/generate_wasatch_7day_table.py --python-path $(which python3)
 
     0 6,18 * * * python3 python/scripts/generate_uintas_7day_table.py --output /home2/vofgesmy/public_html/brackpackblog/Weather/Uintas-7Day-Table.html --server-script-path /home2/vofgesmy/python/scripts/generate_uintas_7day_table.py --python-path $(which python3)
+
+23 April 2026
+Tag pre-changes-2026-04-23 was created to roll back to this point later:                    
+  git checkout pre-changes-2026-04-23                                                                                             
+  Or to reset your main branch to it:                                                                                             
+      git checkout main                                                                                                               
+      git reset --hard pre-changes-2026-04-23                                                                                         
+      git push --force origin main              
