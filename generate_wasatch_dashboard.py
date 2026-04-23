@@ -72,6 +72,7 @@ def fetch_stations() -> List[dict]:
         f"&token={TOKEN}"
         f"&recent={minutes}"
         "&vars=air_temp,wind_speed,wind_gust,wind_direction,snow_depth"
+        "&precip=1"
         "&obtimezone=local"
     )
 
@@ -120,6 +121,29 @@ def parse_stations(raw_stations: List[dict]) -> List[dict]:
         raw_dir   = obs.get("wind_direction_set_1",  [None]*len(times))
         raw_snow  = obs.get("snow_depth_set_1",      [None]*len(times))
 
+        # precip=1 asks Synoptic to derive per-interval amounts from whatever
+        # raw precip sensor the station has (including differencing season totals).
+        # _set_1d = Synoptic-derived; fall back to raw _set_1 if needed.
+        raw_intervals = (
+            obs.get("precip_intervals_set_1d") or
+            obs.get("precip_intervals_set_1") or
+            []
+        )
+
+        # Build a running cumulative sum (mm → inches) starting from 0.
+        # This gives the "accumulation building over 48h" line the chart shows.
+        precip_accum_in = []
+        running = 0.0
+        has_precip = False
+        for v in raw_intervals:
+            if v is not None and v > 0:
+                running += v
+                has_precip = True
+            precip_accum_in.append(round(running * 0.0393701, 3) if raw_intervals else None)
+
+        if not raw_intervals:
+            precip_accum_in = [None] * len(times)
+
         result.append({
             "id":        raw["STID"],
             "name":      raw.get("NAME", cfg["id"]),
@@ -132,13 +156,15 @@ def parse_stations(raw_stations: List[dict]) -> List[dict]:
             "gust_mph":  to_mph(raw_gust),
             "wind_dir":  raw_dir,
             "snow_in":   to_in(raw_snow),
+            "precip_in": precip_accum_in if raw_intervals else [None] * len(times),
         })
 
         n = len(times)
-        temps_valid = sum(1 for v in raw_temp if v is not None)
-        snow_valid  = sum(1 for v in raw_snow if v is not None)
+        temps_valid  = sum(1 for v in raw_temp     if v is not None)
+        snow_valid   = sum(1 for v in raw_snow     if v is not None)
+        precip_valid = len(raw_intervals)
         print(f"  {cfg['id']:8s}  {n:4d} obs  "
-              f"temp:{temps_valid}  snow:{snow_valid}")
+              f"temp:{temps_valid}  snow:{snow_valid}  precip:{precip_valid}")
 
     return result
 
@@ -179,6 +205,7 @@ def generate_html(station_list: List[dict], generated_at: str, refresh_url: str 
       --blue-dark: #1e3a5f;
       --red:       #ef4444;
       --green:     #16a34a;
+      --precip:    #0ea5e9;
       --bg:        #e8eef4;
       --card:      #ffffff;
       --border:    #cbd5e1;
@@ -370,9 +397,10 @@ def generate_html(station_list: List[dict], generated_at: str, refresh_url: str 
     .stat {{ display: flex; flex-direction: column; }}
     .stat-lbl {{ font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }}
     .stat-val {{ font-size: 0.98rem; font-weight: 700; }}
-    .stat-val.temp {{ color: var(--red); }}
-    .stat-val.wind {{ color: var(--blue); }}
-    .stat-val.snow {{ color: var(--green); }}
+    .stat-val.temp   {{ color: var(--red); }}
+    .stat-val.wind   {{ color: var(--blue); }}
+    .stat-val.snow   {{ color: var(--green); }}
+    .stat-val.precip {{ color: var(--precip); }}
 
     .no-data {{ color: var(--muted); font-size: 0.82rem; padding: 20px; text-align: center; }}
   </style>
@@ -445,6 +473,7 @@ function buildCard(st) {{
   const meta = [elev, coords].filter(Boolean).join('  |  ');
 
   const hasSnow = st.snow_in.some(v => v != null);
+  const hasPrec = st.precip_in && st.precip_in.some(v => v != null);
 
   const nwsHref = (st.lat && st.lon)
     ? 'https://forecast.weather.gov/MapClick.php?w0=t&w1=td&w2=wc&w3=sfcwind&w3u=1&w4=sky&w5=pop&w6=rh&w7=thunder&w8=rain&w9=snow&w10=fzg&w11=sleet&AheadHour=0&Submit=Submit&FcstType=graphical&textField1='
@@ -468,7 +497,13 @@ function buildCard(st) {{
     </div>
     <div class="charts-area">
       <div class="chart-panel">
-        <div class="chart-label">Temperature${{hasSnow ? ' &amp; Snow Depth' : ''}} — Last {HOURS}h</div>
+        <div class="chart-label">${{
+          'Temperature' +
+          (hasSnow && hasPrec ? ', Snow Depth &amp; Precip' :
+           hasSnow            ? ' &amp; Snow Depth' :
+           hasPrec            ? ' &amp; Precip' : '') +
+          ' — Last {HOURS}h'
+        }}</div>
         <canvas id="chart-${{st.id}}" height="146"></canvas>
       </div>
       <div class="rose-panel">
@@ -492,10 +527,11 @@ function buildCard(st) {{
 }}
 
 function buildStatsBar(st) {{
-  const validTemps = st.temp_f.filter(v => v != null);
-  const validWinds = st.wind_mph.filter(v => v != null);
-  const validGusts = st.gust_mph.filter(v => v != null);
-  const validSnow  = st.snow_in.filter(v => v != null);
+  const validTemps  = st.temp_f.filter(v => v != null);
+  const validWinds  = st.wind_mph.filter(v => v != null);
+  const validGusts  = st.gust_mph.filter(v => v != null);
+  const validSnow   = st.snow_in.filter(v => v != null);
+  const validPrecip = (st.precip_in || []).filter(v => v != null);
 
   const items = [];
   if (validTemps.length) {{
@@ -527,6 +563,12 @@ function buildStatsBar(st) {{
     items.push(['Snow Depth',    cur.toFixed(1) + '"',         'snow']);
     items.push(['{HOURS}h Range', mn + '" – ' + mx + '"',    'snow']);
   }}
+  if (validPrecip.length) {{
+    const total  = validPrecip.reduce((a, b) => a + b, 0).toFixed(2);
+    const maxHr  = Math.max(...validPrecip).toFixed(2);
+    items.push(['{HOURS}h Precip Total', total + '"',      'precip']);
+    items.push(['Max Hourly Precip',     maxHr + '"/hr',  'precip']);
+  }}
 
   if (!items.length) return '<div class="no-data">No data available</div>';
 
@@ -545,11 +587,12 @@ function renderTempChart(st) {{
   const canvas = document.getElementById('chart-' + st.id);
   if (!canvas) return;
 
-  const tempData = [], snowData = [];
+  const tempData = [], snowData = [], precipData = [];
   for (let i = 0; i < st._times.length; i++) {{
     const x = st._times[i];
-    if (st.temp_f[i] != null) tempData.push({{x, y: st.temp_f[i]}});
-    if (st.snow_in[i] != null) snowData.push({{x, y: st.snow_in[i]}});
+    if (st.temp_f[i]   != null) tempData.push({{x, y: st.temp_f[i]}});
+    if (st.snow_in[i]  != null) snowData.push({{x, y: st.snow_in[i]}});
+    if (st.precip_in && st.precip_in[i] != null) precipData.push({{x, y: st.precip_in[i]}});
   }}
 
   const datasets = [];
@@ -574,6 +617,16 @@ function renderTempChart(st) {{
       yAxisID: 'ySnow', fill: true, spanGaps: true,
     }});
   }}
+  if (precipData.length) {{
+    datasets.push({{
+      label: 'Precip Accum (in)',
+      data: precipData,
+      borderColor: '#0ea5e9',
+      backgroundColor: 'rgba(14,165,233,0.10)',
+      borderWidth: 2, pointRadius: 0, tension: 0.1,
+      yAxisID: 'yPrecip', fill: true, spanGaps: true,
+    }});
+  }}
 
   if (!datasets.length) {{
     canvas.parentElement.insertAdjacentHTML('beforeend',
@@ -585,11 +638,32 @@ function renderTempChart(st) {{
     x: {{
       type: 'time',
       time: {{
+        unit: 'hour',
+        stepSize: 2,
         tooltipFormat: 'MMM d, HH:mm',
         displayFormats: {{ hour: 'HH:mm', day: 'MMM d' }},
       }},
-      ticks: {{ maxTicksLimit: 9, font: {{ size: 11 }} }},
-      grid: {{ color: '#e2e8f0' }},
+      ticks: {{
+        maxTicksLimit: 40,
+        major: {{ enabled: true }},
+        font: ctx => ({{ size: 11, weight: ctx.tick && ctx.tick.major ? '600' : 'normal' }}),
+        color: ctx => ctx.tick && ctx.tick.major ? '#1e293b' : '#94a3b8',
+        callback(val, idx, ticks) {{
+          const t = ticks[idx];
+          if (!t || !t.major) return '';
+          return new Date(val).toLocaleString('en-US', {{
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+          }});
+        }},
+      }},
+      afterBuildTicks(axis) {{
+        axis.ticks.forEach(tick => {{
+          tick.major = new Date(tick.value).getHours() % 6 === 0;
+        }});
+      }},
+      grid: {{
+        color: ctx => ctx.tick && ctx.tick.major ? '#cbd5e1' : '#f1f5f9',
+      }},
     }},
   }};
 
@@ -612,6 +686,16 @@ function renderTempChart(st) {{
       title: {{ display: true, text: 'Snow (in)', color: '#16a34a', font: {{ size: 11 }} }},
       min: Math.max(0, mn - 2), max: mx + 2,
       ticks: {{ font: {{ size: 11 }}, color: '#16a34a' }},
+      grid: {{ drawOnChartArea: false }},
+    }};
+  }}
+  if (precipData.length) {{
+    const mx = Math.max(...precipData.map(p => p.y));
+    scales.yPrecip = {{
+      position: 'right',
+      title: {{ display: true, text: 'Accum (in)', color: '#0ea5e9', font: {{ size: 11 }} }},
+      min: 0, max: Math.max(mx * 1.2, 0.05),
+      ticks: {{ font: {{ size: 11 }}, color: '#0ea5e9' }},
       grid: {{ drawOnChartArea: false }},
     }};
   }}

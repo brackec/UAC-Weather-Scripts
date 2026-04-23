@@ -93,7 +93,8 @@ def fetch_stations() -> List[dict]:
     url = (
         "https://api.synopticdata.com/v2/stations/timeseries"
         f"?stid={stids}&token={TOKEN}&recent={minutes}"
-        "&vars=air_temp,wind_speed,wind_gust,wind_direction,precip_accum_one_hour,snow_depth"
+        "&vars=air_temp,wind_speed,wind_gust,wind_direction,snow_depth"
+        "&precip=1"
         "&obtimezone=local"
     )
     print(f"  Fetching {len(STATIONS)} stations ...")
@@ -130,7 +131,11 @@ def parse_stations(raw_stations: List[dict]) -> List[dict]:
         raw_wind   = get("wind_speed_set_1")
         raw_gust   = get("wind_gust_set_1")
         raw_dir    = get("wind_direction_set_1")
-        raw_precip = get("precip_accum_one_hour_set_1")
+        raw_precip = (
+            obs.get("precip_intervals_set_1d") or
+            obs.get("precip_intervals_set_1") or
+            [None] * n
+        )
         raw_snow   = get("snow_depth_set_1")
 
         buckets = defaultdict(lambda: {
@@ -154,7 +159,7 @@ def parse_stations(raw_stations: List[dict]) -> List[dict]:
             w = _avg(b["winds"])
             g = _max(b["gusts"])
             d = circular_mean(b["dirs"])
-            p = _max(b["precips"])
+            p = sum(b["precips"]) if b["precips"] else None
             s = _last(b["snows"])
             hourly.append({
                 "hour":      hk,
