@@ -33,3 +33,6 @@ Tag pre-changes-2026-04-23 was created to roll back to this point later:
       git checkout main                                                                                                               
       git reset --hard pre-changes-2026-04-23                                                                                         
       git push --force origin main              
+
+Added precipitation to all of the graphs and tables
+added 2 hour tick marks to graphs
