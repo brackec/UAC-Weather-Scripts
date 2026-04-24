@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather Station Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #eef0f3;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a3a6b, #2e6da4);
+      color: white;
+      padding: 18px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.01em; }
+    header p  { font-size: 0.78rem; opacity: 0.7; margin-top: 2px; }
+
+    /* ── Form ─────────────────────────────────────────────── */
+    .form-section {
+      background: white;
+      border-bottom: 1px solid #dde1e7;
+      padding: 14px 24px 10px;
+    }
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: flex-end;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 3px; }
+    .form-group label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .form-group input,
+    .form-group select {
+      padding: 7px 9px;
+      border: 1.5px solid #cfd5dd;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      color: #222;
+      background: #fafafa;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus,
+    .form-group select:focus { outline: none; border-color: #2e6da4; background: #fff; }
+
+    #stids { width: 240px; }
+
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+      align-items: center;
+    }
+    .presets span { font-size: 0.72rem; color: #888; font-weight: 600; margin-right: 2px; }
+    .preset-btn {
+      padding: 4px 10px;
+      border: 1px solid #c0c8d4;
+      border-radius: 4px;
+      background: #f4f7fa;
+      font-size: 0.75rem;
+      color: #444;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .preset-btn:hover { background: #2e6da4; color: white; border-color: #2e6da4; }
+
+    .btn-generate {
+      padding: 7px 22px;
+      background: #2e6da4;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      height: 34px;
+      transition: background 0.15s;
+      letter-spacing: 0.02em;
+    }
+    .btn-generate:hover { background: #1b5490; }
+    .btn-generate:disabled { background: #9ab; cursor: not-allowed; }
+
+    /* ── Loading / Error ─────────────────────────────────── */
+    #loading {
+      display: none;
+      text-align: center;
+      padding: 48px;
+      color: #555;
+      font-size: 1rem;
+    }
+    .spinner {
+      display: inline-block;
+      width: 22px; height: 22px;
+      border: 3px solid #ddd;
+      border-top-color: #2e6da4;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #error {
+      display: none;
+      margin: 16px 24px;
+      padding: 12px 16px;
+      background: #fee2e2;
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+      color: #b91c1c;
+      font-size: 0.88rem;
+    }
+
+    /* ── Output ──────────────────────────────────────────── */
+    #output { padding: 20px 24px; }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      border-bottom: 2px solid #cfd5dd;
+      margin-bottom: 18px;
+    }
+    .tab-btn {
+      padding: 7px 15px;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.13s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: #2e6da4; background: #f4f7fa; }
+    .tab-btn.active { color: #2e6da4; border-bottom-color: #2e6da4; font-weight: 700; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Station header ──────────────────────────────────── */
+    .station-header { margin-bottom: 12px; }
+    .station-header h2 { font-size: 1.15rem; color: #1a3a6b; font-weight: 700; }
+    .station-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      font-size: 0.78rem;
+      color: #777;
+      margin-top: 4px;
+    }
+    .nws-link {
+      color: #2e6da4;
+      text-decoration: none;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border: 1px solid #2e6da4;
+      border-radius: 4px;
+      transition: all 0.12s;
+    }
+    .nws-link:hover { background: #2e6da4; color: white; }
+
+    /* ── Stats bar ───────────────────────────────────────── */
+    .stats-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1px;
+      background: #cfd5dd;
+      border: 1px solid #cfd5dd;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .stat {
+      flex: 1;
+      min-width: 90px;
+      padding: 9px 14px;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .stat-label {
+      font-size: 0.64rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #999;
+    }
+    .stat-val {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1a3a6b;
+    }
+
+    /* ── Chart / Rose layout ─────────────────────────────── */
+    .chart-row {
+      display: grid;
+      grid-template-columns: 3fr 2fr;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 760px) { .chart-row { grid-template-columns: 1fr; } }
+
+    .chart-box, .rose-box {
+      background: white;
+      border: 1px solid #dde1e7;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .box-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #555;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .chart-canvas-wrapper { position: relative; height: 230px; }
+
+    /* ── Wind rose ───────────────────────────────────────── */
+    .rose-box { display: flex; flex-direction: column; align-items: center; }
+    .rose-controls {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 6px;
+    }
+    .rose-controls button {
+      padding: 3px 9px;
+      border: 1px solid #cfd5dd;
+      border-radius: 4px;
+      background: white;
+      color: #333;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .rose-controls button:hover { background: #eef2f7; }
+    .rose-win-label {
+      font-size: 0.75rem;
+      color: #555;
+      min-width: 110px;
+      text-align: center;
+    }
+    .rose-canvas { display: block; }
+    .rose-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      justify-content: center;
+      margin-top: 6px;
+    }
+    .rose-legend span {
+      padding: 1px 7px;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+
+    /* ── Table ───────────────────────────────────────────── */
+    .table-section {
+      background: white;
+      border: 1px solid #dde1e7;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 20px;
+    }
+    .table-section-title {
+      padding: 10px 16px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid #eee;
+    }
+    .table-wrap { overflow-x: auto; max-height: 600px; overflow-y: auto; }
+
+    .weather-table { width: 100%; border-collapse: collapse; font-size: 0.81rem; }
+    .weather-table th {
+      position: sticky;
+      top: 0;
+      background: #1a3a6b;
+      color: white;
+      padding: 7px 11px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 0.75rem;
+      z-index: 2;
+      white-space: nowrap;
+    }
+    .weather-table td {
+      padding: 4px 10px;
+      text-align: center;
+      border-bottom: 1px solid #f2f2f2;
+      white-space: nowrap;
+    }
+    .weather-table tbody tr:hover td { filter: brightness(0.95); }
+    .day-sep td {
+      background: #eef0f3 !important;
+      color: #555;
+      font-weight: 700;
+      font-size: 0.76rem;
+      text-align: left;
+      padding: 5px 12px;
+      border-top: 1px solid #cfd5dd;
+      border-bottom: 1px solid #cfd5dd;
+    }
+
+    .table-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      padding: 10px 16px;
+      font-size: 0.73rem;
+      color: #666;
+      border-top: 1px solid #eee;
+    }
+    .table-legend strong { color: #444; }
+    .swatch {
+      display: inline-block;
+      width: 13px; height: 13px;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 2px;
+      vertical-align: middle;
+      margin-right: 2px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Weather Station Dashboard</h1>
+  <p>Synoptic Data — Custom Date Range &amp; Station</p>
+</header>
+
+<div class="form-section">
+  <div class="form-row">
+    <div class="form-group">
+      <label>Station ID(s)</label>
+      <input type="text" id="stids" placeholder="e.g. PC032, CLN, AMB">
+    </div>
+    <div class="form-group">
+      <label>Start</label>
+      <input type="datetime-local" id="startDt">
+    </div>
+    <div class="form-group">
+      <label>End</label>
+      <input type="datetime-local" id="endDt">
+    </div>
+    <div class="form-group">
+      <label>View</label>
+      <select id="viewMode">
+        <option value="dashboard">Dashboard (Charts)</option>
+        <option value="table">Hourly Table</option>
+        <option value="both">Both</option>
+      </select>
+    </div>
+    <button class="btn-generate" onclick="generateReport()">Generate</button>
+  </div>
+  <div class="presets">
+    <span>Presets:</span>
+    <button class="preset-btn" onclick="setPreset('wasatch')">Wasatch</button>
+    <button class="preset-btn" onclick="setPreset('uintas')">Uintas</button>
+    <button class="preset-btn" onclick="setPreset('skyline')">Skyline</button>
+  </div>
+</div>
+
+<div id="loading"><span class="spinner"></span>Fetching station data…</div>
+<div id="error"></div>
+<div id="output"></div>
+
+<script>
+/* ─────────────────────────────────────────────────────────
+   Constants
+───────────────────────────────────────────────────────── */
+const API_TOKEN = '1643bf6fc1c2450b8ac5b25ff91a1fab';
+const API_BASE  = 'https://api.synopticdata.com/v2/stations/timeseries';
+
+const PRESETS = {
+  wasatch: 'PC032,PCM01,C99,MLDU1,EY,SPC,ATH20,CLN,AMB,HDP,IFF',
+  uintas:  'UTBMP,LOFTY,WDYPK,TRLU1,TPRUT,SMMU1,DSRUT,CCPUT,CCSUT,MHSUT,CUCU1',
+  skyline: 'SKY,ULAMB,UKALF,UTMPK,SEEU1,MCDU1,MTBU1,BUFU1,PC538',
+};
+
+const ROSE_DIRS   = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+const ROSE_BINS   = [0, 5, 10, 15, 20, 25, 30, Infinity];
+const ROSE_COLORS = ['#a8d8f0','#5ab4e5','#2ecc71','#f1c40f','#e67e22','#e74c3c','#8e1a1a'];
+
+/* ─────────────────────────────────────────────────────────
+   Global state
+───────────────────────────────────────────────────────── */
+let globalStations = [];
+const roseState    = {};   // idx -> { windowMs: -1 | timestamp }
+const chartRefs    = {};   // idx -> Chart instance
+
+/* ─────────────────────────────────────────────────────────
+   Init default dates (last 48 hours)
+───────────────────────────────────────────────────────── */
+(function () {
+  const now  = new Date();
+  const past = new Date(now - 48 * 3600 * 1000);
+  document.getElementById('endDt').value   = toInputFmt(now);
+  document.getElementById('startDt').value = toInputFmt(past);
+  document.getElementById('stids').value   = 'PC032';
+})();
+
+function toInputFmt(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function setPreset(key) {
+  document.getElementById('stids').value = PRESETS[key];
+}
+
+/* ─────────────────────────────────────────────────────────
+   Date formatting for Synoptic API (YYYYMMDDHHII in UTC)
+───────────────────────────────────────────────────────── */
+function toApiDate(localStr) {
+  // datetime-local value is treated as local time by browser's Date constructor
+  const d = new Date(localStr);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}${p(d.getUTCMonth()+1)}${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Main entry point
+───────────────────────────────────────────────────────── */
+async function generateReport() {
+  const stids    = document.getElementById('stids').value.trim();
+  const startDt  = document.getElementById('startDt').value;
+  const endDt    = document.getElementById('endDt').value;
+  const viewMode = document.getElementById('viewMode').value;
+
+  if (!stids)   { alert('Enter at least one station ID.'); return; }
+  if (!startDt) { alert('Pick a start date/time.'); return; }
+  if (!endDt)   { alert('Pick an end date/time.'); return; }
+  if (new Date(startDt) >= new Date(endDt)) { alert('Start must be before end.'); return; }
+
+  // Destroy previous charts
+  Object.values(chartRefs).forEach(c => { try { c.destroy(); } catch(e) {} });
+  Object.keys(chartRefs).forEach(k => delete chartRefs[k]);
+  Object.keys(roseState).forEach(k => delete roseState[k]);
+
+  const btn = document.querySelector('.btn-generate');
+  btn.disabled = true;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('error').style.display   = 'none';
+  document.getElementById('output').innerHTML       = '';
+
+  try {
+    const raw = await fetchData(stids, startDt, endDt);
+    globalStations = parseStations(raw);
+    if (!globalStations.length) {
+      throw new Error('No station data returned. Check your station IDs and date range.');
+    }
+    renderOutput(globalStations, viewMode);
+  } catch (err) {
+    const el = document.getElementById('error');
+    el.textContent     = 'Error: ' + err.message;
+    el.style.display   = 'block';
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+    btn.disabled = false;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   API fetch
+───────────────────────────────────────────────────────── */
+async function fetchData(stids, startDt, endDt) {
+  const start = toApiDate(startDt);
+  const end   = toApiDate(endDt);
+  const url   = `${API_BASE}?stid=${encodeURIComponent(stids)}&token=${API_TOKEN}` +
+                `&start=${start}&end=${end}` +
+                `&vars=air_temp,wind_speed,wind_gust,wind_direction,snow_depth` +
+                `&precip=1&obtimezone=local`;
+
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} — ${resp.statusText}`);
+
+  const json = await resp.json();
+  if (json.SUMMARY?.RESPONSE_CODE !== 1) {
+    throw new Error(json.SUMMARY?.RESPONSE_MESSAGE || 'Synoptic API returned an error');
+  }
+  return json;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Parse API response → station objects
+───────────────────────────────────────────────────────── */
+function parseStations(data) {
+  return (data.STATION || []).map(stn => {
+    const obs   = stn.OBSERVATIONS || {};
+    const times = obs.date_time || [];
+
+    function getVar(prefix) {
+      for (const sfx of ['_set_1', '_set_1d', '_set_2', '_set_3']) {
+        if (obs[prefix + sfx] !== undefined) return obs[prefix + sfx];
+      }
+      const key = Object.keys(obs).find(k => k.startsWith(prefix + '_set_'));
+      return key ? obs[key] : null;
+    }
+
+    const rawTemps  = getVar('air_temp');
+    const rawWinds  = getVar('wind_speed');
+    const rawGusts  = getVar('wind_gust');
+    const rawDirs   = getVar('wind_direction');
+    const rawSnow   = getVar('snow_depth');
+    const rawPrecip = obs.precip_intervals_set_1d ?? obs.precip_intervals_set_1 ?? null;
+
+    const observations = times.map((t, i) => ({
+      time:      new Date(t),
+      temp:      rawTemps?.[i]  != null ? rawTemps[i]  * 9/5 + 32   : null,
+      windSpeed: rawWinds?.[i]  != null ? rawWinds[i]  * 2.23694    : null,
+      windGust:  rawGusts?.[i]  != null ? rawGusts[i]  * 2.23694    : null,
+      windDir:   rawDirs?.[i]   ?? null,
+      snowDepth: rawSnow?.[i]   != null ? rawSnow[i]   * 0.0393701  : null,
+      precip:    rawPrecip?.[i] != null ? rawPrecip[i] * 0.0393701  : null,
+    }));
+
+    return {
+      id:        stn.STID,
+      name:      stn.NAME || stn.STID,
+      elevation: stn.ELEVATION ? parseFloat(stn.ELEVATION) : null,
+      lat:       stn.LATITUDE  ? parseFloat(stn.LATITUDE)  : null,
+      lon:       stn.LONGITUDE ? parseFloat(stn.LONGITUDE) : null,
+      observations,
+      hasSnow:   rawSnow  != null,
+      hasPrecip: rawPrecip != null,
+    };
+  });
+}
+
+/* ─────────────────────────────────────────────────────────
+   Render output tabs + panels
+───────────────────────────────────────────────────────── */
+function renderOutput(stations, viewMode) {
+  const output = document.getElementById('output');
+
+  const tabsHtml = stations.map((s, i) =>
+    `<button class="tab-btn ${i===0?'active':''}" onclick="switchTab(${i})">${s.id} — ${s.name}</button>`
+  ).join('');
+
+  const panelsHtml = stations.map((s, i) => {
+    roseState[i] = { windowMs: -1 };
+    let html = '';
+    if (viewMode === 'dashboard' || viewMode === 'both') html += buildDashPanel(s, i);
+    if (viewMode === 'table'     || viewMode === 'both') html += buildTablePanel(s);
+    return `<div class="tab-panel ${i===0?'active':''}" id="panel-${i}">${html}</div>`;
+  }).join('');
+
+  output.innerHTML = `<div class="tabs">${tabsHtml}</div><div>${panelsHtml}</div>`;
+
+  setTimeout(() => {
+    stations.forEach((s, i) => {
+      if (viewMode === 'dashboard' || viewMode === 'both') {
+        initTempChart(s, i);
+        drawWindRose(i);
+      }
+    });
+  }, 30);
+}
+
+function switchTab(idx) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+  document.querySelectorAll('.tab-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+}
+
+/* ─────────────────────────────────────────────────────────
+   Dashboard panel HTML
+───────────────────────────────────────────────────────── */
+function buildDashPanel(station, idx) {
+  const obs    = station.observations;
+  const fmt    = (v, d=1) => v != null ? v.toFixed(d) : '—';
+
+  const lastTemp  = [...obs].reverse().find(o => o.temp      != null) || {};
+  const lastWind  = [...obs].reverse().find(o => o.windSpeed != null) || {};
+  const lastSnow  = [...obs].reverse().find(o => o.snowDepth != null) || {};
+
+  const temps = obs.map(o => o.temp).filter(v => v != null);
+  const gusts = obs.map(o => o.windGust).filter(v => v != null);
+  const winds = obs.map(o => o.windSpeed).filter(v => v != null);
+
+  const minT   = temps.length ? Math.min(...temps) : null;
+  const maxT   = temps.length ? Math.max(...temps) : null;
+  const maxG   = gusts.length ? Math.max(...gusts) : null;
+  const maxW   = winds.length ? Math.max(...winds) : null;
+  const totP   = station.hasPrecip ? obs.reduce((a, o) => a + (o.precip || 0), 0) : null;
+  const maxHP  = station.hasPrecip ? Math.max(...obs.map(o => o.precip || 0)) : null;
+
+  function dir16(deg) {
+    if (deg == null) return '—';
+    return `${Math.round(deg)}° ${ROSE_DIRS[Math.round(deg / 22.5) % 16]}`;
+  }
+
+  const nwsUrl = station.lat && station.lon
+    ? `https://forecast.weather.gov/MapClick.php?lat=${station.lat}&lon=${station.lon}&unit=0&lg=english&FcstType=text`
+    : null;
+
+  const stats = [
+    { label: 'Current Temp',  val: `${fmt(lastTemp.temp)}°F` },
+    { label: 'Temp Range',    val: `${fmt(minT)}–${fmt(maxT)}°F` },
+    { label: 'Wind',          val: `${fmt(lastWind.windSpeed)} mph` },
+    { label: 'Direction',     val: dir16(lastWind.windDir) },
+    { label: maxG != null ? 'Max Gust' : 'Max Wind', val: `${fmt(maxG ?? maxW)} mph` },
+    ...(station.hasSnow  ? [{ label: 'Snow Depth', val: `${fmt(lastSnow.snowDepth)}"` }] : []),
+    ...(station.hasPrecip ? [
+      { label: 'Total Precip',  val: `${fmt(totP, 2)}"` },
+      { label: 'Max Hrly Precip', val: `${fmt(maxHP, 2)}"` },
+    ] : []),
+  ];
+
+  const chartTitle = ['Temperature °F',
+    station.hasSnow  ? '+ Snow Depth' : '',
+    station.hasPrecip ? '+ Precip' : '',
+  ].filter(Boolean).join(' ');
+
+  return `
+    <div class="station-header">
+      <h2>${station.name} <span style="font-weight:400;font-size:0.9rem;color:#555">(${station.id})</span></h2>
+      <div class="station-meta">
+        ${station.elevation ? `<span>Elev: ${station.elevation.toFixed(0)} ft</span>` : ''}
+        ${station.lat ? `<span>${station.lat.toFixed(4)}°N / ${Math.abs(station.lon ?? 0).toFixed(4)}°W</span>` : ''}
+        ${nwsUrl ? `<a href="${nwsUrl}" target="_blank" class="nws-link">NWS Forecast ↗</a>` : ''}
+      </div>
+    </div>
+
+    <div class="stats-bar">
+      ${stats.map(s => `<div class="stat"><span class="stat-label">${s.label}</span><span class="stat-val">${s.val}</span></div>`).join('')}
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-box">
+        <div class="box-title">${chartTitle}</div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="chart-${idx}"></canvas>
+        </div>
+      </div>
+      <div class="rose-box">
+        <div class="box-title" style="align-self:flex-start">Wind Rose</div>
+        <div class="rose-controls">
+          <button onclick="roseStep(${idx}, -1)">◀ Prev 4h</button>
+          <span class="rose-win-label" id="rose-label-${idx}">All Time</span>
+          <button onclick="roseStep(${idx}, 1)">Next 4h ▶</button>
+          <button onclick="roseAll(${idx})">All</button>
+        </div>
+        <canvas id="rose-${idx}" class="rose-canvas" width="280" height="280"></canvas>
+        <div class="rose-legend">
+          ${ROSE_COLORS.map((c, i) => {
+            const labels = ['0–5','5–10','10–15','15–20','20–25','25–30','30+'];
+            const txtColor = i === 6 ? '#fff' : '#333';
+            return `<span style="background:${c};color:${txtColor}">${labels[i]}</span>`;
+          }).join('')}
+          <span style="color:#888;font-size:0.68rem;align-self:center">mph</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Temperature / Snow / Precip chart (Chart.js)
+───────────────────────────────────────────────────────── */
+function initTempChart(station, idx) {
+  const canvas = document.getElementById(`chart-${idx}`);
+  if (!canvas) return;
+
+  const obs = station.observations;
+
+  const datasets = [];
+
+  // Temperature
+  datasets.push({
+    label: 'Temp °F',
+    data: obs.filter(o => o.temp != null).map(o => ({ x: o.time, y: o.temp })),
+    borderColor: '#c0392b',
+    backgroundColor: 'rgba(192,57,43,0.07)',
+    borderWidth: 2,
+    pointRadius: 0,
+    fill: true,
+    tension: 0.3,
+    yAxisID: 'yTemp',
+    order: 1,
+  });
+
+  if (station.hasSnow) {
+    datasets.push({
+      label: 'Snow Depth (in)',
+      data: obs.filter(o => o.snowDepth != null).map(o => ({ x: o.time, y: o.snowDepth })),
+      borderColor: '#2980b9',
+      backgroundColor: 'rgba(41,128,185,0.08)',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      fill: false,
+      stepped: 'before',
+      yAxisID: 'ySnow',
+      order: 2,
+    });
+  }
+
+  if (station.hasPrecip) {
+    let acc = 0;
+    const precipAcc = obs
+      .filter(o => o.precip != null)
+      .map(o => { acc += o.precip; return { x: o.time, y: acc }; });
+    datasets.push({
+      label: 'Precip Accum (in)',
+      data: precipAcc,
+      borderColor: '#27ae60',
+      backgroundColor: 'rgba(39,174,96,0.07)',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      fill: true,
+      tension: 0.2,
+      yAxisID: 'yPrecip',
+      order: 3,
+    });
+  }
+
+  const scales = {
+    x: {
+      type: 'time',
+      time: {
+        tooltipFormat: 'MMM d, HH:mm',
+        displayFormats: { hour: 'M/d HH:mm', day: 'MMM d' },
+      },
+      grid: { color: '#f2f2f2' },
+      ticks: { maxTicksLimit: 10, font: { size: 10 }, color: '#777' },
+    },
+    yTemp: {
+      position: 'left',
+      title: { display: true, text: '°F', font: { size: 10 }, color: '#c0392b' },
+      grid: { color: '#f2f2f2' },
+      ticks: { font: { size: 10 }, color: '#777' },
+    },
+  };
+
+  if (station.hasSnow) {
+    scales.ySnow = {
+      position: 'right',
+      title: { display: true, text: 'Snow (in)', font: { size: 10 }, color: '#2980b9' },
+      grid: { drawOnChartArea: false },
+      ticks: { font: { size: 10 }, color: '#777' },
+      min: 0,
+    };
+  }
+
+  if (station.hasPrecip) {
+    scales.yPrecip = {
+      position: 'right',
+      title: { display: true, text: 'Precip (in)', font: { size: 10 }, color: '#27ae60' },
+      grid: { drawOnChartArea: false },
+      ticks: { font: { size: 10 }, color: '#777' },
+      min: 0,
+    };
+  }
+
+  chartRefs[idx] = new Chart(canvas, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { font: { size: 10 }, boxWidth: 12, padding: 10 },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}`,
+          },
+        },
+      },
+      scales,
+    },
+  });
+}
+
+/* ─────────────────────────────────────────────────────────
+   Wind rose (Canvas)
+───────────────────────────────────────────────────────── */
+function roseAll(idx) {
+  roseState[idx].windowMs = -1;
+  drawWindRose(idx);
+}
+
+function roseStep(idx, dir) {
+  const obs   = globalStations[idx].observations;
+  const times = obs.map(o => o.time.getTime()).filter(t => !isNaN(t));
+  if (!times.length) return;
+
+  const minT  = Math.min(...times);
+  const maxT  = Math.max(...times);
+  const winMs = 4 * 3600 * 1000;
+
+  let cur = roseState[idx].windowMs;
+  if (cur === -1) {
+    cur = dir > 0 ? minT : maxT - winMs;
+  } else {
+    cur += dir * winMs;
+  }
+  cur = Math.max(minT, Math.min(cur, maxT - winMs));
+  roseState[idx].windowMs = cur;
+  drawWindRose(idx);
+}
+
+function drawWindRose(idx) {
+  const canvas = document.getElementById(`rose-${idx}`);
+  if (!canvas) return;
+
+  const station   = globalStations[idx];
+  const winMs     = roseState[idx]?.windowMs ?? -1;
+  const WIN_HOURS = 4 * 3600 * 1000;
+
+  let filtered;
+  if (winMs === -1) {
+    filtered = station.observations;
+    document.getElementById(`rose-label-${idx}`).textContent = 'All Time';
+  } else {
+    const winEnd = winMs + WIN_HOURS;
+    filtered = station.observations.filter(o => {
+      const t = o.time.getTime();
+      return t >= winMs && t < winEnd;
+    });
+    document.getElementById(`rose-label-${idx}`).textContent =
+      `${fmtRoseTime(new Date(winMs))} – ${fmtRoseTime(new Date(winEnd))}`;
+  }
+
+  const ctx  = canvas.getContext('2d');
+  const W    = canvas.width;
+  const H    = canvas.height;
+  const cx   = W / 2;
+  const cy   = H / 2;
+  const maxR = Math.min(W, H) / 2 * 0.76;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Bin observations
+  const counts = Array.from({ length: 16 }, () => Array(7).fill(0));
+  let total = 0;
+
+  for (const o of filtered) {
+    if (o.windDir == null || o.windSpeed == null) continue;
+    const dIdx = Math.round(o.windDir / 22.5) % 16;
+    let bIdx = 6;
+    for (let b = 0; b < ROSE_BINS.length - 1; b++) {
+      if (o.windSpeed < ROSE_BINS[b + 1]) { bIdx = b; break; }
+    }
+    counts[dIdx][bIdx]++;
+    total++;
+  }
+
+  if (total === 0) {
+    ctx.fillStyle   = '#aaa';
+    ctx.font        = '12px sans-serif';
+    ctx.textAlign   = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('No wind data', cx, cy);
+    return;
+  }
+
+  const dirTotals = counts.map(c => c.reduce((a, b) => a + b, 0));
+  const maxFreq   = Math.max(...dirTotals);
+
+  // Reference rings (25 / 50 / 75 / 100% of max frequency)
+  for (let r = 1; r <= 4; r++) {
+    const rr = (r / 4) * maxR;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rr, 0, 2 * Math.PI);
+    ctx.strokeStyle = r === 4 ? '#bbb' : '#ddd';
+    ctx.lineWidth   = r === 4 ? 1 : 0.7;
+    ctx.stroke();
+
+    const pct = Math.round((r / 4) * maxFreq / total * 100);
+    ctx.fillStyle    = '#bbb';
+    ctx.font         = '8px sans-serif';
+    ctx.textAlign    = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`${pct}%`, cx + 2, cy - rr + 1);
+  }
+
+  // Direction spokes
+  for (let d = 0; d < 16; d++) {
+    const angle = compassAngle(d * 22.5);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + maxR * Math.cos(angle), cy + maxR * Math.sin(angle));
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth   = 0.7;
+    ctx.stroke();
+  }
+
+  // Stacked wedges per direction
+  const halfW = 11.25 * Math.PI / 180;
+  for (let d = 0; d < 16; d++) {
+    const angle  = compassAngle(d * 22.5);
+    let innerR = 0;
+    for (let b = 0; b < 7; b++) {
+      if (counts[d][b] === 0) continue;
+      const outerR = innerR + (counts[d][b] / maxFreq) * maxR;
+      ctx.beginPath();
+      ctx.moveTo(
+        cx + innerR * Math.cos(angle - halfW),
+        cy + innerR * Math.sin(angle - halfW),
+      );
+      ctx.arc(cx, cy, outerR, angle - halfW, angle + halfW);
+      ctx.arc(cx, cy, innerR, angle + halfW, angle - halfW, true);
+      ctx.closePath();
+      ctx.fillStyle   = ROSE_COLORS[b];
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth   = 0.5;
+      ctx.fill();
+      ctx.stroke();
+      innerR = outerR;
+    }
+  }
+
+  // Compass labels
+  for (let d = 0; d < 16; d++) {
+    const angle  = compassAngle(d * 22.5);
+    const labelR = maxR + 15;
+    ctx.fillStyle    = '#333';
+    ctx.font         = d % 4 === 0 ? 'bold 10px sans-serif' : '8px sans-serif';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ROSE_DIRS[d], cx + labelR * Math.cos(angle), cy + labelR * Math.sin(angle));
+  }
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, 2 * Math.PI);
+  ctx.fillStyle = '#555';
+  ctx.fill();
+}
+
+// Converts compass bearing (0=N, clockwise) to canvas angle (0=right, clockwise)
+function compassAngle(bearing) {
+  return (bearing - 90) * Math.PI / 180;
+}
+
+function fmtRoseTime(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:00`;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Hourly table panel
+───────────────────────────────────────────────────────── */
+function buildTablePanel(station) {
+  const hourly    = aggregateHourly(station);
+  const hasPrecip = station.hasPrecip;
+  const hasSnow   = station.hasSnow;
+
+  const cols = [
+    'Date / Time', 'Temp °F', 'Wind mph', 'Gust mph', 'Direction',
+    ...(hasPrecip ? ['Precip in'] : []),
+    ...(hasSnow   ? ['Snow Depth in'] : []),
+  ];
+
+  const fmt = (v, d=1) => v != null ? v.toFixed(d) : '—';
+
+  function dir16(deg) {
+    if (deg == null) return '—';
+    return `${Math.round(deg)}° ${ROSE_DIRS[Math.round(deg / 22.5) % 16]}`;
+  }
+
+  let lastDay = '';
+  const rows = hourly.map(h => {
+    const dayStr = h.time.toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+    });
+    let out = '';
+    if (dayStr !== lastDay) {
+      lastDay = dayStr;
+      out += `<tr class="day-sep"><td colspan="${cols.length}">${dayStr}</td></tr>`;
+    }
+    const timeStr = h.time.toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    out += `<tr>
+      <td>${timeStr}</td>
+      <td style="background:${tempColor(h.temp)}">${fmt(h.temp)}</td>
+      <td style="background:${windColor(h.windSpeed)}">${fmt(h.windSpeed)}</td>
+      <td style="background:${windColor(h.windGust)}">${fmt(h.windGust)}</td>
+      <td>${dir16(h.windDir)}</td>
+      ${hasPrecip ? `<td style="background:${precipColor(h.precip)}">${fmt(h.precip, 2)}</td>` : ''}
+      ${hasSnow   ? `<td style="background:${snowColor(h.snowDepth)}">${fmt(h.snowDepth)}</td>` : ''}
+    </tr>`;
+    return out;
+  }).join('');
+
+  return `
+    <div class="table-section">
+      <div class="table-section-title">Hourly Data — ${station.name} (${station.id})</div>
+      <div class="table-wrap">
+        <table class="weather-table">
+          <thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+          <tbody>${rows || '<tr><td colspan="' + cols.length + '" style="padding:20px;color:#888">No data</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="table-legend">
+        <strong>Temp:</strong>
+        <span><span class="swatch" style="background:#0d2b6b"></span>≤0°</span>
+        <span><span class="swatch" style="background:#1a52b5"></span>0–10</span>
+        <span><span class="swatch" style="background:#5b9bd5"></span>10–20</span>
+        <span><span class="swatch" style="background:#a8d5f5"></span>20–30</span>
+        <span><span class="swatch" style="background:#c8e6c8"></span>30–40</span>
+        <span><span class="swatch" style="background:#ffec99"></span>40–50</span>
+        <span><span class="swatch" style="background:#ff9966"></span>50–60</span>
+        <span><span class="swatch" style="background:#cc3333"></span>>60°F</span>
+        &emsp;
+        <strong>Wind/Gust:</strong>
+        <span><span class="swatch" style="background:#fff;border-color:#ccc"></span><5</span>
+        <span><span class="swatch" style="background:#ffe4b5"></span>5–15</span>
+        <span><span class="swatch" style="background:#ff9966"></span>15–25</span>
+        <span><span class="swatch" style="background:#cc3333"></span>25–35</span>
+        <span><span class="swatch" style="background:#8b0000"></span>≥35 mph</span>
+        ${hasPrecip ? `&emsp;<strong>Precip:</strong>
+        <span><span class="swatch" style="background:#fff;border-color:#ccc"></span>0"</span>
+        <span><span class="swatch" style="background:#dff0ff"></span>trace</span>
+        <span><span class="swatch" style="background:#a8d8f0"></span>0.05–0.1"</span>
+        <span><span class="swatch" style="background:#5ab4e5"></span>0.1–0.25"</span>
+        <span><span class="swatch" style="background:#1a52b5"></span>≥0.25"</span>` : ''}
+        ${hasSnow ? `&emsp;<strong>Snow Depth:</strong>
+        <span><span class="swatch" style="background:#fff;border-color:#ccc"></span>0"</span>
+        <span><span class="swatch" style="background:#dff0ff"></span><12"</span>
+        <span><span class="swatch" style="background:#a8d8f0"></span>12–36"</span>
+        <span><span class="swatch" style="background:#1a52b5"></span>≥36"</span>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Hourly aggregation
+───────────────────────────────────────────────────────── */
+function aggregateHourly(station) {
+  const buckets = {};
+  for (const o of station.observations) {
+    const d   = o.time;
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+    if (!buckets[key]) {
+      buckets[key] = {
+        time:    new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()),
+        temps:   [], winds:  [], gusts:  [],
+        dirs:    [], snows:  [], precips: [],
+      };
+    }
+    const b = buckets[key];
+    if (o.temp      != null) b.temps.push(o.temp);
+    if (o.windSpeed != null) b.winds.push(o.windSpeed);
+    if (o.windGust  != null) b.gusts.push(o.windGust);
+    if (o.windDir   != null) b.dirs.push(o.windDir);
+    if (o.snowDepth != null) b.snows.push(o.snowDepth);
+    if (o.precip    != null) b.precips.push(o.precip);
+  }
+
+  const avg  = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+  const maxV = arr => arr.length ? Math.max(...arr) : null;
+  const last = arr => arr.length ? arr[arr.length - 1] : null;
+  const sum  = arr => arr.length ? arr.reduce((a, b) => a + b, 0) : null;
+
+  function circularMean(degs) {
+    if (!degs.length) return null;
+    const sinS = degs.reduce((a, d) => a + Math.sin(d * Math.PI / 180), 0);
+    const cosS = degs.reduce((a, d) => a + Math.cos(d * Math.PI / 180), 0);
+    let m = Math.atan2(sinS, cosS) * 180 / Math.PI;
+    return m < 0 ? m + 360 : m;
+  }
+
+  return Object.values(buckets)
+    .sort((a, b) => a.time - b.time)
+    .map(b => ({
+      time:      b.time,
+      temp:      avg(b.temps),
+      windSpeed: avg(b.winds),
+      windGust:  maxV(b.gusts),
+      windDir:   circularMean(b.dirs),
+      snowDepth: last(b.snows),
+      precip:    sum(b.precips),
+    }));
+}
+
+/* ─────────────────────────────────────────────────────────
+   Color scales (matching original Python scripts)
+───────────────────────────────────────────────────────── */
+function tempColor(t) {
+  if (t == null) return 'transparent';
+  if (t <= 0)  return '#0d2b6b';
+  if (t <= 10) return '#1a52b5';
+  if (t <= 20) return '#5b9bd5';
+  if (t <= 30) return '#a8d5f5';
+  if (t <= 40) return '#c8e6c8';
+  if (t <= 50) return '#ffec99';
+  if (t <= 60) return '#ff9966';
+  return '#cc3333';
+}
+
+function windColor(w) {
+  if (w == null) return 'transparent';
+  if (w < 5)  return '#ffffff';
+  if (w < 15) return '#ffe4b5';
+  if (w < 25) return '#ff9966';
+  if (w < 35) return '#cc3333';
+  return '#8b0000';
+}
+
+function precipColor(p) {
+  if (p == null || p === 0) return '#ffffff';
+  if (p < 0.05)  return '#dff0ff';
+  if (p < 0.1)   return '#a8d8f0';
+  if (p < 0.25)  return '#5ab4e5';
+  return '#1a52b5';
+}
+
+function snowColor(s) {
+  if (s == null || s === 0) return '#ffffff';
+  if (s < 12) return '#dff0ff';
+  if (s < 36) return '#a8d8f0';
+  return '#1a52b5';
+}
+</script>
+</body>
+</html>
