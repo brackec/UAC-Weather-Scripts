@@ -36,3 +36,11 @@ Tag pre-changes-2026-04-23 was created to roll back to this point later:
 
 Added precipitation to all of the graphs and tables
 added 2 hour tick marks to graphs
+
+
+24 April 2026
+* added the custom weather html page with Brett
+
+27 April 2026
+* Precip and Snow Total for 48 hours was incorrect. It was reporting season. This was fixed.
+* 
