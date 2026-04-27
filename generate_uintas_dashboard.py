@@ -551,11 +551,10 @@ function buildStatsBar(st) {{
     }}
   }}
   if (validSnow.length) {{
-    const cur = validSnow[validSnow.length - 1];
-    const mn  = Math.min(...validSnow).toFixed(1);
-    const mx  = Math.max(...validSnow).toFixed(1);
-    items.push(['Snow Depth',    cur.toFixed(1) + '"',         'snow']);
-    items.push(['{HOURS}h Range', mn + '" – ' + mx + '"',    'snow']);
+    const cur      = validSnow[validSnow.length - 1];
+    const snowfall = Math.max(0, cur - validSnow[0]).toFixed(1);
+    items.push(['Snow Depth',       cur.toFixed(1) + '"', 'snow']);
+    items.push(['{HOURS}h Snowfall', snowfall + '"',       'snow']);
   }}
   if (validPrecip.length) {{
     const total  = validPrecip[validPrecip.length - 1].toFixed(2);
