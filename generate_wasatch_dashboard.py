@@ -564,10 +564,13 @@ function buildStatsBar(st) {{
     items.push(['{HOURS}h Range', mn + '" – ' + mx + '"',    'snow']);
   }}
   if (validPrecip.length) {{
-    const total  = validPrecip.reduce((a, b) => a + b, 0).toFixed(2);
-    const maxHr  = Math.max(...validPrecip).toFixed(2);
-    items.push(['{HOURS}h Precip Total', total + '"',      'precip']);
-    items.push(['Max Hourly Precip',     maxHr + '"/hr',  'precip']);
+    const total  = validPrecip[validPrecip.length - 1].toFixed(2);
+    let maxHr = 0;
+    for (let i = 1; i < validPrecip.length; i++) {{
+      maxHr = Math.max(maxHr, validPrecip[i] - validPrecip[i - 1]);
+    }}
+    items.push(['{HOURS}h Precip Total', total + '"',             'precip']);
+    items.push(['Max Hourly Precip',     maxHr.toFixed(2) + '"/hr', 'precip']);
   }}
 
   if (!items.length) return '<div class="no-data">No data available</div>';
