@@ -43,4 +43,4 @@ added 2 hour tick marks to graphs
 
 27 April 2026
 * Precip and Snow Total for 48 hours was incorrect. It was reporting season. This was fixed.
-* 
+* fixed the 48h snowfall total to match precip total
