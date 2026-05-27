@@ -6,8 +6,8 @@ Fetches 7 days of data from the Synoptic API and writes a self-contained
 tabular HTML file.
 
 Usage:
-  python3 generate_skyline_UAC_7day_table.py
-  python3 generate_skyline_UAC_7day_table.py --output /path/to/output.html
+  python3 generate_skyline_weather_table.py
+  python3 generate_skyline_weather_table.py --output /path/to/output.html
 """
 
 import argparse
