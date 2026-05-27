@@ -6,7 +6,7 @@ Fetches weather station data from the Synoptic Data API and writes a
 self-contained HTML file.  Run from cron twice daily (6 AM / 6 PM).
 
 Cron example:
-  0 6,18 * * * /usr/bin/python3 /path/to/generate_wasatch_UAC_dashboard.py
+  0 6,18 * * * /usr/bin/python3 /path/to/generate_wasatch_weather_graphs.py
 
 Outputs:   OUTPUT_PATH (single HTML file, ready to serve)
 """
@@ -41,7 +41,7 @@ STATIONS = [
     {"id": "IFF"},
 ]
 
-_DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "Wasatch-UAC-Weather-Stations.html")
+_DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "wasatch-weather-graphs.html")
 OUTPUT_PATH = os.environ.get("DASHBOARD_OUTPUT_PATH", _DEFAULT_OUTPUT)
 
 _LOGO_PATH = os.path.join(os.path.dirname(__file__), "UAC-logo.png")
