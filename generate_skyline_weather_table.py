@@ -40,7 +40,7 @@ STATIONS = [
     {"id": "PC538"},
 ]
 
-_DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "skyline-weather-table.html")
+_DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "skyline-weather-tables.html")
 OUTPUT_PATH = os.environ.get("TABLE_OUTPUT_PATH", _DEFAULT_OUTPUT)
 
 _LOGO_PATH = os.path.join(os.path.dirname(__file__), "UAC-logo.png")
