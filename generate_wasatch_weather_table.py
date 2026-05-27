@@ -6,8 +6,8 @@ Fetches 7 days of data from the Synoptic API and writes a self-contained
 tabular HTML file.
 
 Usage:
-  python3 generate_wasatch_UAC_7day_table.py
-  python3 generate_wasatch_UAC_7day_table.py --output /path/to/output.html
+  python3 generate_wasatch_weather_table.py
+  python3 generate_wasatch_weather_table.py --output /path/to/output.html
 """
 
 import argparse
@@ -42,7 +42,7 @@ STATIONS = [
     {"id": "IFF"},
 ]
 
-_DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "Wasatch-UAC-7Day-Table.html")
+_DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "wasatch-weather-tables.html")
 OUTPUT_PATH = os.environ.get("TABLE_OUTPUT_PATH", _DEFAULT_OUTPUT)
 
 _LOGO_PATH = os.path.join(os.path.dirname(__file__), "UAC-logo.png")
