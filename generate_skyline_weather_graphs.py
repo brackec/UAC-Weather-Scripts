@@ -6,7 +6,7 @@ Fetches weather station data from the Synoptic Data API and writes a
 self-contained HTML file.  Run from cron twice daily (6 AM / 6 PM).
 
 Cron example:
-  0 6,18 * * * /usr/bin/python3 /path/to/generate_skyline_UAC_dashboard.py
+  0 6,18 * * * /usr/bin/python3 /path/to/generate_skyline_weather_graphs.py
 
 Outputs:   OUTPUT_PATH (single HTML file, ready to serve)
 """
